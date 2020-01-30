@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <Ogre.h>
+#include <OgreSkeletonSerializer.h>
 
 #include <experimental/filesystem>
 
@@ -8,73 +9,81 @@ namespace fs = std::experimental::filesystem;
 using namespace Ogre;
 
 
+SkeletonPtr getSkeletonFromFile(std::string name, SkeletonSerializer& serializer) {
+    SkeletonPtr skel = SkeletonManager::getSingleton().create(name, ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+
+    // XXX: Handle error better
+    std::ifstream ifs;
+    ifs.open(name, std::ios_base::in | std::ios_base::binary);
+    if (ifs.bad()) {
+      std::cout << "Unable to load file high" << std::endl;
+      exit(1);
+    }
+    DataStreamPtr stream(new FileStreamDataStream("./../resources/high.skeleton", &ifs, false));
+
+    serializer.importSkeleton(stream, skel.get());
+
+    return skel;
+}
+
+
 int main() {
     int retCode = 0;
 
+    // Ogre depends on many different singletons - these all need to be created
+    // initially and together with all depedencies they have.
+    auto mLogManager = std::make_unique<LogManager>();
+    mLogManager->createLog("Temporary log", false, true, true); 
+    mLogManager->setDefaultLog(mLogManager->createLog("OgreTemp.log", false, false));
+
+    mLogManager->destroyLog("Temporary log");
+
+    auto mResourceGroupManager = std::make_unique<ResourceGroupManager>();
+    auto mSkeletonManager = std::make_unique<SkeletonManager>();
+    auto serializer = std::make_unique<SkeletonSerializer>();
 
 
+    auto base_name = "./../resources/roedeer.skeleton";
 
-    std::unique_ptr<LogManager> mLogManager;
-    std::unique_ptr<ResourceGroupManager> mResourceGroupManager;
-    std::unique_ptr<MeshManager> mMeshManager;
-    std::unique_ptr<SkeletonManager> mSkeletonManager;
+    SkeletonPtr base = getSkeletonFromFile(base_name, *serializer);
 
-    mLogManager.reset(new LogManager());
-    mResourceGroupManager.reset(new ResourceGroupManager());
-    mMeshManager.reset(new MeshManager());
-    mSkeletonManager.reset(new SkeletonManager());
-    
+    std::cout << base->getNumAnimations() << std::endl;
 
+    std::cout << base_name << " " << base->getNumBones() << std::endl;
+
+    Skeleton::BoneHandleMap bmap;
+    base->_buildMapBoneByHandle(base.get(), bmap);
 
 
-    // SkeletonManager* sm;
-    // sm = SkeletonManager::getSingletonPtr();
-
-    // try {
-    // } catch(Exception& e) {
-    //     LogManager::getSingleton().logError(e.getDescription());
-    //     retCode = 1;
-    // }
-
-    // Ogre::Root* mRoot;
-
-
-    // auto sman = mRoot->createSceneManager();
-
-    SkeletonPtr skel = mSkeletonManager->
-        create("conversion", ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
-
-    // Ogre::MeshManager mman;
-
-    // Clean up the conversion skeleton
-    // sm->remove("conversion", ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
-
-    // Ogre::ResourceGroupManager::getSingletonPtr()->destroyResourceGroup("UserMesh");
-	// Ogre::ResourceGroupManager::getSingletonPtr()->createResourceGroup("UserMesh");
-	// Ogre::ResourceGroupManager::getSingleton().addResourceLocation("/scratch/dev/github.com/arubertoson/ogreskel/resources", "FileSystem", "UserMesh", true);
-	// Ogre::ResourceGroupManager::getSingletonPtr()->initialiseResourceGroup("UserMesh");
-	// Ogre::ResourceGroupManager::getSingletonPtr()->loadResourceGroup("UserMesh");
-
-    // Ogre::ResourceGroupManager::getSingleton().createResourceGroup("UserDefinedMesh");
-    // Ogre::ResourceGroupManager::getSingleton().addResourceLocation("/mnt/d/anims", "FileSystem");
-    // Ogre::ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
-    // auto mr = Ogre::MeshManager::getSingleton().getByName("/mnt/d/anims/roedeer.mesh");
-
-    // auto mesh = sman->createEntity("/mnt/d/anims/roedeer.mesh");
-    // Ogre::SkeletonSerializer sz;
-    // Ogre::Skeleton* mSkel;
-
-    // Ogre::SkeletonPtr mSkel = Ogre::SkeletonManager::getSingleton().getByName("/mnt/d/anims/high.skeleton", Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
-            // "/mnt/d/anims/high.skeleton");
-    
-    // Ogre::DataStreamPtr stream = Ogre::ResourceGroupManager::getSingleton().openResource("/mnt/d/anims/high.skeleton");
-    
-    // sz.importSkeleton(stream, mSkel);
-
-    fs::path const dir {"/mnt/d/anims"};
-    for (auto & entry : fs::directory_iterator(dir)) {
+    fs::path const dir {"./../resources"};
+    if (fs::exists(dir)) {
+      for (auto & entry : fs::directory_iterator(dir)) {
+        if (!(entry.path().extension() == ".skeleton") || !entry.path().compare(base_name)) {
+          continue;
+        }
         std::cout << entry.path() << std::endl;
+
+        SkeletonPtr other = getSkeletonFromFile(entry.path().c_str(), *serializer);
+
+        size = other->getNumAnimations();
+        for (ushort i = 0; i < size; ++i) {
+          auto anim = other->getAnimation(i);
+        }
+
+        try {
+          base->_mergeSkeletonAnimations(other.get(), bmap);
+        } catch (InternalErrorException& e) {
+          std::cout << entry.path() << "ERROR ERROR" << std::endl;
+          std::cout << e.what() << std::endl;
+        }
+      }
     }
+
+    std::cout << base->getNumAnimations() << std::endl;
+
+
+    serializer->exportSkeleton(base.get(), "../combined.skeleton", SKELETON_VERSION_LATEST, Serializer::ENDIAN_NATIVE);
+    std::cout << "Wer are done!" << std::endl;
 
     // Ogre::Skeleton* mSkel = Ogre::SkeletonManager::getSingleton().getSkeleton
 
