@@ -1,94 +1,123 @@
+// Skeleton Merger
 
 #include <iostream>
-#include <Ogre.h>
+#include <string>
+#include <vector>
+
+// #include <Ogre.h>
+// To keep the executable minimal we don't want to rely on the heavy OgreMain
+// header, lightweight appraoch is to just import what we need
+#include <OgreLogManager.h>
+#include <OgreResourceManager.h>
+#include <OgreSkeleton.h>
+#include <OgreSkeletonManager.h>
 #include <OgreSkeletonSerializer.h>
 
-#include <experimental/filesystem>
-
-namespace fs = std::experimental::filesystem;
 using namespace Ogre;
 
+SkeletonPtr getSkeletonFromFile(std::string name, SkeletonSerializer &serializer) {
+        SkeletonPtr skeleton = SkeletonManager::getSingleton().create(
+            name, ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
 
-SkeletonPtr getSkeletonFromFile(std::string name, SkeletonSerializer& serializer) {
-    SkeletonPtr skel = SkeletonManager::getSingleton().create(name, ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+        // XXX: Handle error better
+        std::ifstream ifs;
+        ifs.open(name, std::ios_base::in | std::ios_base::binary);
+        if (ifs.bad()) {
+                std::cout << "Unable to load file high" << std::endl;
+                exit(1);
+        }
+        DataStreamPtr stream(new FileStreamDataStream(name, &ifs, false));
 
-    // XXX: Handle error better
-    std::ifstream ifs;
-    ifs.open(name, std::ios_base::in | std::ios_base::binary);
-    if (ifs.bad()) {
-      std::cout << "Unable to load file high" << std::endl;
-      exit(1);
-    }
-    DataStreamPtr stream(new FileStreamDataStream("./../resources/high.skeleton", &ifs, false));
+        serializer.importSkeleton(stream, skeleton.get());
 
-    serializer.importSkeleton(stream, skel.get());
-
-    return skel;
+        return skeleton;
 }
 
+int main(int argc, char *argv[]) {
+        // Ogre depends on many different singletons - these all need to be created
+        // initially and together with all dependencies they have. There needs
+        // to exists a default log, otherwise Ogre will throw when it tries to
+        // log internally
+        auto mLogManager = std::make_unique<LogManager>();
+        mLogManager->setDefaultLog(mLogManager->createLog("OgreTemp.log", false, false));
 
-int main() {
-    int retCode = 0;
+        // The argument list is purpusfully kept simple, the first input will be
+        // a path to the base skeleton, the following is everythign we want to
+        // merge to it.
+        std::vector<std::string> args;
+        args.assign(argv + 1, argv + argc);
 
-    // Ogre depends on many different singletons - these all need to be created
-    // initially and together with all depedencies they have.
-    auto mLogManager = std::make_unique<LogManager>();
-    mLogManager->createLog("Temporary log", false, true, true); 
-    mLogManager->setDefaultLog(mLogManager->createLog("OgreTemp.log", false, false));
-
-    mLogManager->destroyLog("Temporary log");
-
-    auto mResourceGroupManager = std::make_unique<ResourceGroupManager>();
-    auto mSkeletonManager = std::make_unique<SkeletonManager>();
-    auto serializer = std::make_unique<SkeletonSerializer>();
-
-
-    auto base_name = "./../resources/roedeer.skeleton";
-
-    SkeletonPtr base = getSkeletonFromFile(base_name, *serializer);
-
-    std::cout << base->getNumAnimations() << std::endl;
-
-    std::cout << base_name << " " << base->getNumBones() << std::endl;
-
-    Skeleton::BoneHandleMap bmap;
-    base->_buildMapBoneByHandle(base.get(), bmap);
-
-
-    fs::path const dir {"./../resources"};
-    if (fs::exists(dir)) {
-      for (auto & entry : fs::directory_iterator(dir)) {
-        if (!(entry.path().extension() == ".skeleton") || !entry.path().compare(base_name)) {
-          continue;
-        }
-        std::cout << entry.path() << std::endl;
-
-        SkeletonPtr other = getSkeletonFromFile(entry.path().c_str(), *serializer);
-
-        size = other->getNumAnimations();
-        for (ushort i = 0; i < size; ++i) {
-          auto anim = other->getAnimation(i);
+        if (argc <= 2) {
+                LogManager::getSingleton().logError(
+                    "Source skeleton needs to be followed by input skeletongs");
+                exit(1);
         }
 
-        try {
-          base->_mergeSkeletonAnimations(other.get(), bmap);
-        } catch (InternalErrorException& e) {
-          std::cout << entry.path() << "ERROR ERROR" << std::endl;
-          std::cout << e.what() << std::endl;
+        // For resource management we also rely on singletons, the skeleton
+        // manager depends on the ResourceGroupManager and thus both needs to be
+        // initialized with their unique pointers
+        auto mResourceGroupManager = std::make_unique<ResourceGroupManager>();
+        auto mSkeletonManager = std::make_unique<SkeletonManager>();
+        auto serializer = std::make_unique<SkeletonSerializer>();
+
+        // XXX: Should take argumetn list (should not be hardcoded)
+        auto baseName = args[0];
+
+        // We create the base skeleton which will consume the animations in the
+        // other skeleton files.
+        SkeletonPtr base = getSkeletonFromFile(baseName, *serializer);
+
+        // BoneHandleMap is necessary to make ensure that the source and
+        // destination skeleton have compatible bone setup. We build the handle
+        // map from our base skeleton
+        Skeleton::BoneHandleMap bmap;
+        base->_buildMapBoneByHandle(base.get(), bmap);
+
+        for (auto i = 1; i < (argc - 1); ++i) {
+                auto p = args[i];
+
+                // If a skeleton resource already exists just meanss that we
+                // have given a skeleton that points to the same file as our
+                // base skeleton and we can safely ignore it.
+                if (SkeletonManager::getSingleton().resourceExists(p)) {
+                        continue;
+                }
+
+                SkeletonPtr other = getSkeletonFromFile(p, *serializer);
+
+                // Trying to populate the base skeleton with duplicate animation will
+                // result in a unnecessary throw of Ogre::ItemIdentifyException. To
+                // avoid this we simply make sure that we skip any animation that we've
+                // already populated in the skeleton
+                StringVector animations;
+
+                ushort size = other->getNumAnimations();
+                for (ushort i = 0; i < size; ++i) {
+                        auto name = other->getAnimation(i)->getName();
+                        if (base->hasAnimation(name)) {
+                                continue;
+                        }
+
+                        animations.emplace_back(name);
+                }
+
+                // If we couldn't find any unique animations in the skeleton
+                // just continue the loop
+                if (animations.empty()) {
+                        continue;
+                }
+
+                // At least we merge the two skeletons with the given animation list to
+                // ensure we avoid duplicates
+                base->_mergeSkeletonAnimations(other.get(), bmap, animations);
+
+                // Clean up other skeleton from resource pool
+                SkeletonManager::getSingleton().remove(p);
         }
-      }
-    }
 
-    std::cout << base->getNumAnimations() << std::endl;
+        // Finally we write the skeleton out the output file
+        serializer->exportSkeleton(base.get(), baseName + ".combined", SKELETON_VERSION_LATEST,
+                                   Serializer::ENDIAN_NATIVE);
 
-
-    serializer->exportSkeleton(base.get(), "../combined.skeleton", SKELETON_VERSION_LATEST, Serializer::ENDIAN_NATIVE);
-    std::cout << "Wer are done!" << std::endl;
-
-    // Ogre::Skeleton* mSkel = Ogre::SkeletonManager::getSingleton().getSkeleton
-
-  // Ogre::Skeleton::_mergeSkeletonAnimations(const Skeleton *source, const BoneHandleMap &boneHandleMap)
-  // std:cout << Ogre::SkeletonAnimationBlendMode::ANIMBLEND_AVERAGE << std::endl;
-
-    return retCode;
+        return 0;
 }
