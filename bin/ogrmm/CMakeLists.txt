@@ -24,3 +24,8 @@ target_include_directories(
   PRIVATE
   ${OGRE_INCLUDE_DIRS}
 )
+
+install(
+  TARGETS ${MESH_MERGE}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

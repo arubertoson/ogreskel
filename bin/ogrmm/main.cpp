@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <Ogre.h>
+
 #include "OgreDistanceLodStrategy.h"
 #include "OgreLodStrategyManager.h"
 #include "OgreMeshLodGenerator.h"
@@ -113,6 +115,7 @@ int main(int argc, char *argv[]) {
         meshfiles.erase(meshfiles.begin());
 
         auto base_mesh = getMeshFromFile(base_name, *mMeshSerializer);
+        Ogre::LogManager::getSingleton().logMessage("Base mesh file: " + base_name);
 
         for (auto p : meshfiles) {
                 if (Ogre::MeshManager::getSingleton().resourceExists(p)) {
@@ -120,9 +123,12 @@ int main(int argc, char *argv[]) {
                 }
 
                 auto mesh = getMeshFromFile(p, *mMeshSerializer);
+                Ogre::LogManager::getSingleton().logMessage("Mergin mesh file: " + mesh->getName());
 
                 for (auto name_idx : mesh->getSubMeshNameMap()) {
                         auto src_sub = mesh->getSubMesh(name_idx.second);
+                        Ogre::LogManager::getSingleton().logMessage("Mergin sub-mesh: " +
+                                                                    name_idx.first);
 
                         // Base Setup
                         auto dst_sub = base_mesh->createSubMesh();
@@ -149,5 +155,5 @@ int main(int argc, char *argv[]) {
         base_mesh->setSkeletonName(skeleton);
 
         // Finish by writing out to file
-        mMeshSerializer->exportMesh(base_mesh.get(), output);
+        mMeshSerializer->exportMesh(base_mesh.get(), output, Ogre::MESH_VERSION_1_8);
 }
