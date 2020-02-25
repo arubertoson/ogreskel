@@ -57,12 +57,12 @@ Ogre::MeshPtr getMeshFromFile(std::string name, Ogre::MeshSerializer &serializer
 
 int main(int argc, char *argv[]) {
         CLI::App app;
-
-        std::string output;
-        app.add_option("--output", output, "Where to output file");
-
-        std::string skeleton;
-        app.add_option("--skeleton", skeleton, "Where to output file");
+        //
+        // std::string output;
+        // app.add_option("--output", output, "Where to output file");
+        //
+        // std::string skeleton;
+        // app.add_option("--skeleton", skeleton, "Where to output file");
 
         std::vector<std::string> meshfiles;
         app.add_option("inputs", meshfiles, "Files to work on");
@@ -79,11 +79,11 @@ int main(int argc, char *argv[]) {
         // The argument list is purpusfully kept simple, the first input will be
         // a path to the base skeleton, the following is everything we want to
         // merge to it.
-        if (meshfiles.size() < 2) {
-                Ogre::LogManager::getSingleton().logError(
-                    "Source skeleton needs to be followed by input skeletons");
-                exit(1);
-        }
+        // if (meshfiles.size() < 2) {
+        //         Ogre::LogManager::getSingleton().logError(
+        //             "Source skeleton needs to be followed by input skeletons");
+        //         exit(1);
+        // }
 
         // For resource management we also rely on singletons, the skeleton
         // manager depends on the ResourceGroupManager and thus both needs to be
@@ -109,10 +109,10 @@ int main(int argc, char *argv[]) {
 
         // First input is always the "root", the file we will flatten the other
         // files into.
-        auto base_name = meshfiles[0];
-        meshfiles.erase(meshfiles.begin());
+        // auto base_name = meshfiles[0];
+        // meshfiles.erase(meshfiles.begin());
+        // auto base_mesh = getMeshFromFile(base_name, *mMeshSerializer);
 
-        auto base_mesh = getMeshFromFile(base_name, *mMeshSerializer);
 
         for (auto p : meshfiles) {
                 if (Ogre::MeshManager::getSingleton().resourceExists(p)) {
@@ -120,34 +120,15 @@ int main(int argc, char *argv[]) {
                 }
 
                 auto mesh = getMeshFromFile(p, *mMeshSerializer);
+                std::cout << mesh->getName() << std::endl;
 
+                auto subidx = mesh->getSubMeshNameMap().size();
+                std::cout << subidx << std::endl;
                 for (auto name_idx : mesh->getSubMeshNameMap()) {
                         auto src_sub = mesh->getSubMesh(name_idx.second);
 
                         // Base Setup
-                        auto dst_sub = base_mesh->createSubMesh(name_idx.first);
-                        // base_mesh->nameSubMesh(name_idx.first, name_idx.second);
-
-                        dst_sub->parent = base_mesh.get();
-                        dst_sub->useSharedVertices = false;
-                        dst_sub->indexData = src_sub->indexData->clone();
-                        dst_sub->vertexData = src_sub->vertexData->clone();
-
-                        dst_sub->mLodFaceList = src_sub->mLodFaceList;
-                        dst_sub->operationType = src_sub->operationType;
-
-                        dst_sub->setMaterial(Ogre::MaterialManager::getSingleton().getByName(
-                            src_sub->getMaterialName()));
-
-                        // Bones
-                        for (auto &bone : src_sub->getBoneAssignments()) {
-                                dst_sub->addBoneAssignment(bone.second);
-                        }
+                        std::cout << name_idx.first  << " : " << name_idx.second << std::endl;
                 }
         }
-
-        base_mesh->setSkeletonName(skeleton);
-
-        // Finish by writing out to file
-        mMeshSerializer->exportMesh(base_mesh.get(), output);
 }
