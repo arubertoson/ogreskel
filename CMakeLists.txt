@@ -14,5 +14,9 @@ target_include_directories(
   include
 )
 
+# The GNUInstallDirs module sets a couple default variables in accordance with
+# the GNU standard, pretty helpful to keep things clean.
+include(GNUInstallDirs)
+
 add_subdirectory(bin)
 

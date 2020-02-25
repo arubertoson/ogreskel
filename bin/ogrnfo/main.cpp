@@ -1,5 +1,6 @@
 // Mesh Merger
 #include <CLI11.hpp>
+#include <nlohmann/json.hpp>
 
 #include <iostream>
 #include <string>
@@ -76,15 +77,6 @@ int main(int argc, char *argv[]) {
         auto mLogManager = std::make_unique<Ogre::LogManager>();
         mLogManager->setDefaultLog(mLogManager->createLog("OgreTemp.log", false, false));
 
-        // The argument list is purpusfully kept simple, the first input will be
-        // a path to the base skeleton, the following is everything we want to
-        // merge to it.
-        // if (meshfiles.size() < 2) {
-        //         Ogre::LogManager::getSingleton().logError(
-        //             "Source skeleton needs to be followed by input skeletons");
-        //         exit(1);
-        // }
-
         // For resource management we also rely on singletons, the skeleton
         // manager depends on the ResourceGroupManager and thus both needs to be
         // initialized with their unique pointers
@@ -107,13 +99,6 @@ int main(int argc, char *argv[]) {
         auto MatListner = std::make_unique<MaterialCreator>();
         mMeshSerializer->setListener(MatListner.get());
 
-        // First input is always the "root", the file we will flatten the other
-        // files into.
-        // auto base_name = meshfiles[0];
-        // meshfiles.erase(meshfiles.begin());
-        // auto base_mesh = getMeshFromFile(base_name, *mMeshSerializer);
-
-
         for (auto p : meshfiles) {
                 if (Ogre::MeshManager::getSingleton().resourceExists(p)) {
                         continue;
@@ -128,7 +113,7 @@ int main(int argc, char *argv[]) {
                         auto src_sub = mesh->getSubMesh(name_idx.second);
 
                         // Base Setup
-                        std::cout << name_idx.first  << " : " << name_idx.second << std::endl;
+                        std::cout << name_idx.first << " : " << name_idx.second << std::endl;
                 }
         }
 }

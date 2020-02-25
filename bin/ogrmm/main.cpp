@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <Ogre.h>
+
 #include "OgreDistanceLodStrategy.h"
 #include "OgreLodStrategyManager.h"
 #include "OgreMeshLodGenerator.h"
@@ -126,7 +128,6 @@ int main(int argc, char *argv[]) {
 
                         // Base Setup
                         auto dst_sub = base_mesh->createSubMesh(name_idx.first);
-                        // base_mesh->nameSubMesh(name_idx.first, name_idx.second);
 
                         dst_sub->parent = base_mesh.get();
                         dst_sub->useSharedVertices = false;
@@ -149,5 +150,5 @@ int main(int argc, char *argv[]) {
         base_mesh->setSkeletonName(skeleton);
 
         // Finish by writing out to file
-        mMeshSerializer->exportMesh(base_mesh.get(), output);
+        mMeshSerializer->exportMesh(base_mesh.get(), output, Ogre::MESH_VERSION_1_8);
 }
